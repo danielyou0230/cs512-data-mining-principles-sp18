@@ -1,6 +1,5 @@
 import argparse
-from utils import readlines, remove_redundant_char
-from utils import tokenize_context, find_frequent_words, filter_title, write_to_file
+from utils import readlines, remove_redundant_char, tokenize_context, find_frequent_words, filter_title, write_to_file
 from itertools import chain
 
 
@@ -14,6 +13,11 @@ def cleanup(file, output, cleanup_only=False, threshold=5, thread=None):
     """
     # 1. Convert each title to lowercase.
     data = readlines(file, delimiter="\t", lower=True)
+    """
+    for itr in data:
+        if len(itr) != 5:
+            print(itr)
+    """
     # 2. Remove all characters that are not 
     #    (1) lowercase characters (a-z), 
     #    (2) whitespace, or 

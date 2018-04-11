@@ -85,7 +85,7 @@ def readlines(file, begin=None, limit=None, delimiter=None, lower=False):
     print("Loading lines in file: {0}".format(file))
     #
     with open(file, "r") as f:
-        lines = f.read().splitlines()[begin:limit]
+        lines = f.read().replace('\u2028',' ').splitlines()[begin:limit]
 
     if lower:
         print(" - Convert all context to lower case.")
@@ -93,13 +93,11 @@ def readlines(file, begin=None, limit=None, delimiter=None, lower=False):
         print(" - Keep all context original cases.")
 
     data = list()
-    if delimiter is not None or lower:
-        for itr in lines:
-            data.append(itr.lower().split(delimiter) if lower else
-                        itr.split(delimiter))
+    for itr in lines:
+        data.append(itr.lower().split(delimiter) if lower else itr.split(delimiter))
     print("Total {0} lines loaded.".format(len(lines)))
 
-    return data if delimiter is not None or lower else lines
+    return data
 
 def write_to_file(file, data, delimiter=None, row_as_line=False):
     """
