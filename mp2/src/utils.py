@@ -1,6 +1,7 @@
 import re
 import nltk
 import numpy as np
+from scipy.sparse import csr_matrix
 from collections import Counter
 from itertools import chain
 from tqdm import tqdm
@@ -67,6 +68,14 @@ def generic_threading(n_jobs, data, method, param=None, shared=False):
     print("All threads completed.")
     return result
 
+def save_sparse(filename, array):
+    np.savez(filename, data=array.data, indices=array.indices,
+             indptr=array.indptr, shape=array.shape)
+
+def load_sparse(filename):
+    loader = np.load(filename)
+    return csr_matrix((loader['data'], qloader['indices'], loader['indptr']),
+                      shape=loader['shape'])
 
 def readlines(file, begin=None, limit=None, delimiter=None, lower=False):
     """
