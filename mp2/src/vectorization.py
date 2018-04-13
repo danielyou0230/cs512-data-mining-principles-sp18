@@ -8,12 +8,10 @@ from sklearn.externals import joblib
 from sklearn.preprocessing import LabelEncoder
 from sklearn.feature_extraction.text import CountVectorizer
 from itertools import chain
+from tqdm import tqdm
 
-
-# python src/vectorization.py data/cleaned_data.txt \
-# --output=data/text_features.txt --amount=100
-# python src/vectorization.py data/cleaned_validation.txt \
-# --output=data/text_features_val.txt --fit
+# python src/vectorization.py data/cleaned_data.txt --output=training
+# python src/vectorization.py data/cleaned_validation.txt --fit
 
 
 def vectorization(file, output, vector_model=None, encoder_model=None,
@@ -28,6 +26,7 @@ def vectorization(file, output, vector_model=None, encoder_model=None,
         venues_list = "data/labels.txt"
 
     sampled_trainset = "text_features.txt"
+    trainset = "data/trainset.tsv"
 
     # Load cleaned data
     data = readlines(file, delimiter="\t", lower=True)
@@ -40,6 +39,7 @@ def vectorization(file, output, vector_model=None, encoder_model=None,
     cols = ["ID", "TITLE", "VENUE", "CITE_PPRS", "CITE_VEN"]
     df = pd.DataFrame(data, columns=cols)
 
+    ppr_id = df["ID"].as_matrix()[:, np.newaxis]
     titles = df["TITLE"].as_matrix()
     venues = df["VENUE"].as_matrix()
 
@@ -52,7 +52,6 @@ def vectorization(file, output, vector_model=None, encoder_model=None,
     # Vectorization
     # titles_feature = [vectorizer.transform([itr]).toarray() for itr in titles]
     titles_feature = vectorizer.transform(titles).toarray()
-    print(titles_feature[0, :])
 
     # Label Encoder
     encoder = LabelEncoder()
@@ -61,22 +60,42 @@ def vectorization(file, output, vector_model=None, encoder_model=None,
     joblib.dump(encoder, encoder_model)
 
     # Convert to labels
+    print("Transforming venues to labels...")
     venues_feature = encoder.transform(venues)[:, np.newaxis]
-
     # Sample a subset of data for assignments
     # convert title feature vector to strings
-    output_ttl = [", ".join([str(e) for e in titles_feature[itr,:]])
-                  for itr in range(amount)]
+    # output_ttl = [", ".join([str(e) for e in titles_feature[itr,:]])
+    #               for itr in range(amount)]
+    print("Creating output array...")
+    output_ttl = list()
+    for itr in tqdm(range(len(venues))):
+        index = np.where(titles_feature[itr,:] == 1)[0]
+        arr = ", ".join([str(itr) for itr in index])
+        output_ttl.append(arr)
     output_ttl = np.array(output_ttl)[:, np.newaxis]
+
     # merge the feature vector and labels
-    output_arr = np.hstack([output_ttl, venues_feature[:amount]])
-    output_col = ["feature_vector", "encoded_labels"]
+    # output_arr = np.hstack([output_ttl, venues_feature[:amount]])
+    n_bow = len(vectorizer.vocabulary_)
+    info = np.array([ppr_id.shape[0], n_bow, encoder.classes_.shape[0]])
+    info = info[np.newaxis,:]
+    #
+    output_arr = np.hstack([ppr_id, output_ttl, venues_feature])
+    output_arr = np.vstack([info, output_arr])
+
+    output_col = ["id", "feature_vector", "encoded_labels"]
     # Convert to pandas.DataFrame
     output_df = pd.DataFrame(output_arr, columns=output_col)
 
-    print("Saving sampled training set to {0}".format(sampled_trainset))
-    output_df.to_csv(sampled_trainset, sep='\t', index=False, header=False)
+    # print("Saving sampled training set to {0}\n".format(sampled_trainset))
+    print("Saving sampled training set to {0}\n".format(trainset))
+    # output_df.to_csv(sampled_trainset, sep='\t', index=False, header=False)
+    output_df.to_csv(trainset, sep='\t', index=False, header=False)
+
     # Save to file
+    # print("Saving data and labels to npy")
+    # np.save("data/{:s}_text.npy".format(output), titles_feature)
+    # np.save("data/{:s}_label.npy".format(output), venues_feature)
     # write_to_file(output, feature)
 
 def fit_encoder(file, output, vector_model, encoder_model):
@@ -86,6 +105,7 @@ def fit_encoder(file, output, vector_model, encoder_model):
         vector_model = "model/vectorizer.pkl"
     if encoder_model is None:
         encoder_model = "model/encoder.pkl"
+    testset = "data/testset.tsv"
 
     # Load cleaned data
     data = readlines(file, delimiter="\t", lower=True)
@@ -93,6 +113,7 @@ def fit_encoder(file, output, vector_model, encoder_model):
     cols = ["ID", "TITLE", "VENUE", "CITE_PPRS", "CITE_VEN"]
     df = pd.DataFrame(data, columns=cols)
 
+    ppr_id = df["ID"].as_matrix()[:, np.newaxis]
     titles = df["TITLE"].as_matrix()
     venues = df["VENUE"].as_matrix()
 
@@ -101,17 +122,41 @@ def fit_encoder(file, output, vector_model, encoder_model):
     vectorizer = joblib.load(vector_model)
     # Vectorization
     print("Vectorizing text features...")
-    titles_feature = [vectorizer.transform([itr]).toarray() for itr in titles]
-
+    # titles_feature = [vectorizer.transform([itr]).toarray() for itr in titles]
+    titles_feature = vectorizer.transform(titles).toarray()
+    
     # Load LabelEncoder
     print("Loading LabelEncoder from {0}".format(encoder_model))
     encoder = joblib.load(encoder_model)
     # Convert to labels
-    print("Encoding venues...")
-    venues_feature = encoder.transform(venues)
+    print("Encoding venues...\n")
+    venues_feature = encoder.transform(venues)[:, np.newaxis]
 
-    # Save to file
-    # write_to_file(output, feature)
+    print("Creating output array...")
+    output_ttl = list()
+    for itr in tqdm(range(len(venues))):
+        index = np.where(titles_feature[itr,:] == 1)[0]
+        arr = ", ".join([str(itr) for itr in index])
+        output_ttl.append(arr)
+    output_ttl = np.array(output_ttl)[:, np.newaxis]
+
+    # merge the feature vector and labels
+    # output_arr = np.hstack([output_ttl, venues_feature[:amount]])
+    n_bow = len(vectorizer.vocabulary_)
+    info = np.array([ppr_id.shape[0], n_bow, encoder.classes_.shape[0]])
+    info = info[np.newaxis,:]
+    #
+    output_arr = np.hstack([ppr_id, output_ttl, venues_feature])
+    output_arr = np.vstack([info, output_arr])
+
+    output_col = ["id", "feature_vector", "encoded_labels"]
+    # Convert to pandas.DataFrame
+    output_df = pd.DataFrame(output_arr, columns=output_col)
+
+    # print("Saving sampled training set to {0}\n".format(sampled_trainset))
+    print("Saving dataset to {0}\n".format(testset))
+    # output_df.to_csv(sampled_trainset, sep='\t', index=False, header=False)
+    output_df.to_csv(testset, sep='\t', index=False, header=False)
 
 
 if __name__ == '__main__':
