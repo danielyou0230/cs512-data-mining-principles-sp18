@@ -25,6 +25,8 @@ def vectorization(file, output, vector_model=None, encoder_model=None,
     if venues_list is None:
         venues_list = "data/labels.txt"
 
+    h_vector_model = vector_model[:-4] + "_h" + vector_model[-4:]
+
     sampled_trainset = "text_features.txt"
     trainset = "data/trainset.tsv"
 
@@ -39,19 +41,33 @@ def vectorization(file, output, vector_model=None, encoder_model=None,
     cols = ["ID", "TITLE", "VENUE", "CITE_PPRS", "CITE_VEN"]
     df = pd.DataFrame(data, columns=cols)
 
-    ppr_id = df["ID"].as_matrix()[:, np.newaxis]
-    titles = df["TITLE"].as_matrix()
-    venues = df["VENUE"].as_matrix()
+    ppr_id = df["ID"].values[:, np.newaxis]
+    titles = df["TITLE"].values
+    venues = df["VENUE"].values
+    cite_v = df["CITE_VEN"].values
 
-    # Fit Vectorization model
-    vectorizer = CountVectorizer()
+    # Fit Vectorization model (Normal)
+    vectorizer = CountVectorizer(max_features=3000)
     vectorizer.fit_transform(titles)
     print("Save Vectorizer to file {0}".format(vector_model))
     joblib.dump(vectorizer, vector_model)
 
+    # Fit Vectorization model (Heterogeneous)
+    extra_space = np.chararray(cite_v.shape)
+    extra_space[:] = " "
+
+    h_raw = np.core.defchararray.add(titles, extra_space)
+    h_raw = np.core.defchararray.add(h_raw, cite_v)
+    h_vectorizer = CountVectorizer(max_features=3000)
+    h_vectorizer.fit_transform()
+    print("Save Heterogeneous Vectorizer to file {0}".format(h_vector_model))
+    joblib.dump(h_vectorizer, h_vector_model)
+
     # Vectorization
     # titles_feature = [vectorizer.transform([itr]).toarray() for itr in titles]
     titles_feature = vectorizer.transform(titles).toarray()
+    print(" - Feature dimension: {:4d}".format(titles_feature.shape[1]))
+    print(titles_feature)
 
     # Label Encoder
     encoder = LabelEncoder()
@@ -106,6 +122,7 @@ def fit_encoder(file, output, vector_model, encoder_model):
     if encoder_model is None:
         encoder_model = "model/encoder.pkl"
     testset = "data/testset.tsv"
+    h_vector_model = vector_model[:-4] + "_h" + vector_model[-4:]
 
     # Load cleaned data
     data = readlines(file, delimiter="\t", lower=True)
@@ -113,9 +130,10 @@ def fit_encoder(file, output, vector_model, encoder_model):
     cols = ["ID", "TITLE", "VENUE", "CITE_PPRS", "CITE_VEN"]
     df = pd.DataFrame(data, columns=cols)
 
-    ppr_id = df["ID"].as_matrix()[:, np.newaxis]
-    titles = df["TITLE"].as_matrix()
-    venues = df["VENUE"].as_matrix()
+    ppr_id = df["ID"].values[:, np.newaxis]
+    titles = df["TITLE"].values
+    venues = df["VENUE"].values
+    cite_v = df["CITE_VEN"].values
 
     # Load Vectorizer
     print("Loading Vectorizer from {0}".format(vector_model))
@@ -125,6 +143,17 @@ def fit_encoder(file, output, vector_model, encoder_model):
     # titles_feature = [vectorizer.transform([itr]).toarray() for itr in titles]
     titles_feature = vectorizer.transform(titles).toarray()
     
+    # Fit Vectorization model (Heterogeneous)
+    extra_space = np.chararray(cite_v.shape)
+    extra_space[:] = " "
+
+    h_feature = np.core.defchararray.add(titles, extra_space)
+    h_feature = np.core.defchararray.add(h_feature, cite_v)
+    h_vectorizer = CountVectorizer(max_features=3000)
+    h_vectorizer.fit_transform()
+    print("Save Heterogeneous Vectorizer to file {0}".format(h_vector_model))
+    joblib.dump(h_vectorizer, h_vector_model)
+
     # Load LabelEncoder
     print("Loading LabelEncoder from {0}".format(encoder_model))
     encoder = joblib.load(encoder_model)

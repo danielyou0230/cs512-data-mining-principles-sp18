@@ -8,9 +8,9 @@ from sklearn.externals import joblib
 from sklearn.metrics import f1_score
 from tqdm import tqdm
 
-# python src/model.py --model=model/automl.pkl --train=data/trainset.tsv
-# python src/model.py --model=model/automl.pkl --train=data/trainset.tsv --test=data/testset.tsv
-# python src/model.py --model=model/automl.pkl --test=data/testset.tsv --predict
+# python src/model.py --model=model/sgd.pkl --train=data/trainset.tsv
+# python src/model.py --model=model/sgd.pkl --train=data/trainset.tsv --test=data/testset.tsv
+# python src/model.py --model=model/sgd.pkl --test=data/testset.tsv --predict
 
 
 def expand_dense_matrix(dense, size):
@@ -36,7 +36,7 @@ def f1_eval(y_true, y_pred):
           .format(f1_micro, f1_macro, f1_weighted))
 
 
-def run(train, test=None, model=None):
+def run(train, test=None, model=None, automl=False):
     """
     """
     # clf = SGDClassifier()
@@ -46,26 +46,32 @@ def run(train, test=None, model=None):
     df = pd.read_csv(train, delimiter="\t", header=None, names=cols)
 
     # Some useful information
-    n_data = int(df["id"].as_matrix()[0])
+    n_data = int(df["id"].values[0])
     print(" - Total number of data: {:8d}\n".format(n_data))
-    n_bow = int(df["feature_vector"].as_matrix()[0])
-    n_class = int(df["encoded_labels"].as_matrix()[0])
+    n_bow = int(df["feature_vector"].values[0])
+    n_class = int(df["encoded_labels"].values[0])
 
     # Expand Training feature vectors and labels 
-    X_train = expand_dense_matrix(df["feature_vector"].as_matrix()[1:], n_bow)
-    y_train = expand_dense_matrix(df["encoded_labels"].as_matrix()[1:], n_class)
+    X_train = expand_dense_matrix(df["feature_vector"].values[1:], n_bow)
+    # y_train = expand_dense_matrix(df["encoded_labels"].as_matrix()[1:], n_class)
+    y_train = df["encoded_labels"].astype('int64')[1:].values
     del df
 
-    print("Initializing AutoSklearnClassifier and fitting with training data")
-    clf = AutoSklearnClassifier()
-    clf.fit(X_train, y_train)
+    if automl:
+        print("Initializing AutoSklearnClassifier and fitting with training data")
+        clf = AutoSklearnClassifier()
+        clf.fit(X_train, y_train)
+    else:
+        print("Initializing SGDClassifier and fitting with training data")
+        clf = SGDClassifier(n_jobs=-1, verbose=1)
+        clf.fit(X_train, y_train)
 
     print("Saving model to file: {:s}".format(model))
     joblib.dump(clf, model)
 
     # Self evaluation
     print("Self evaluating...")
-    y_pred = clf.predict(X_test)
+    y_pred = clf.predict(X_train)
     f1_eval(y_train, y_pred)
 
     if test is not None:
@@ -83,15 +89,16 @@ def predict(test, model, clf=None):
     df = pd.read_csv(test, delimiter="\t", header=None, names=cols)
 
     # Some useful information
-    n_data = int(df["id"].as_matrix()[0])
+    n_data = int(df["id"].values[0])
     print(" - Total number of data: {:8d}\n".format(n_data))
-    n_bow = int(df["feature_vector"].as_matrix()[0])
-    n_class = int(df["encoded_labels"].as_matrix()[0])
+    n_bow = int(df["feature_vector"].values[0])
+    n_class = int(df["encoded_labels"].values[0])
 
     id_test = df["id"].as_matrix()[1:][:, np.newaxis]
     # Expand Training feature vectors and labels 
-    X_test = expand_dense_matrix(df["feature_vector"].as_matrix()[1:], n_bow)
-    y_test = expand_dense_matrix(df["encoded_labels"].as_matrix()[1:], n_class)
+    X_test = expand_dense_matrix(df["feature_vector"].values[1:], n_bow)
+    # y_test = expand_dense_matrix(df["encoded_labels"].as_matrix()[1:], n_class)
+    y_test = df["encoded_labels"].astype('int64')[1:].values
     del df
 
     # Predict
@@ -99,7 +106,7 @@ def predict(test, model, clf=None):
     f1_eval(y_test, y_pred)
 
     # Save result
-    output_arr = np.hstack(id_test, y_pred[:, np.newaxis])
+    output_arr = np.hstack([id_test, y_pred[:, np.newaxis]])
     df = pd.DataFrame(output_arr)
     df.to_csv("prediction.tsv", sep='\t', index=False, header=False)
 
@@ -112,6 +119,7 @@ if __name__ == '__main__':
     parser.add_argument("--test", help="Testing set filename.")
     parser.add_argument("--predict", action="store_true",
                         help="Fit model with given training set.")
+    parser.add_argument("--automl", action="store_true", help="Testing set filename.")
 
     args = parser.parse_args()
 
@@ -122,4 +130,4 @@ if __name__ == '__main__':
     if args.predict:
         predict(args.test, args.model)
     else:
-        run(args.train, args.test, args.model)
+        run(args.train, args.test, args.model, args.automl)
