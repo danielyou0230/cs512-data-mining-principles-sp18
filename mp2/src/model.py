@@ -9,8 +9,13 @@ from sklearn.metrics import f1_score
 from tqdm import tqdm
 
 # python src/model.py --model=model/sgd.pkl --train=data/trainset.tsv
+# python src/model.py --model=model/sgd.pkl --train=data/h_trainset.tsv
+
 # python src/model.py --model=model/sgd.pkl --train=data/trainset.tsv --test=data/testset.tsv
+# python src/model.py --model=model/sgd.pkl --train=data/h_trainset.tsv --test=data/h_testset.tsv
+
 # python src/model.py --model=model/sgd.pkl --test=data/testset.tsv --predict
+# python src/model.py --model=model/sgd.pkl --test=data/h_testset.tsv --predict
 
 
 def expand_dense_matrix(dense, size):
