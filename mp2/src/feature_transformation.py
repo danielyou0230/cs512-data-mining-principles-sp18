@@ -17,6 +17,19 @@ from tqdm import tqdm
 
 
 def generate_features(data, hin=False):
+    """
+    Generate features according to given specs.
+
+    Args:
+        data(ndarray): Data contains ID, TITLE, VENUE, CITE_PPRS, CITE_VEN
+        hin(bool): Whether to use heterogeneous features (optional).
+
+    Returns:
+        ppr_id(ndarray): Paper IDs.
+        context(ndarray): Titles.
+        venues(ndarray): Venues.
+    """
+
     # Convert to pandas.DataFrame
     cols = ["ID", "TITLE", "VENUE", "CITE_PPRS", "CITE_VEN"]
     df = pd.DataFrame(data, columns=cols)
@@ -29,13 +42,15 @@ def generate_features(data, hin=False):
     # Fit Vectorization model (Normal)
     if hin:
         context = list()
+        # ***CAUSED MEMORY ERROR***
         # Fit Vectorization model (Heterogeneous)
         # Fill in spaces in each column (concatenate extra features)
         # extra_space = np.chararray(cite_v.shape)
         # extra_space[:] = " "
-
         # context = np.core.defchararray.add(titles, extra_space)
         # context = np.core.defchararray.add(context, cite_v)
+
+        # Use for loop to 
         for idx in range(titles.shape[0]):
             # titles[idx] += " " + cite_v[idx]
             context.append(titles[idx] + " " + cite_v[idx])
@@ -47,10 +62,20 @@ def generate_features(data, hin=False):
 
 
 def save_features(ppr_id, features, venues_feature, n_bow, n_venues, save_name):
+    """
+    Save features to .csv file.
+
+    Args:
+        ppr_id(ndarray): Paper IDs.
+        features(ndarray): Paper titles features.
+        venues_feature(ndarray): Paper venues features.
+        n_bow(int): Number of bag-of-words (word space).
+        n_venues(int): Number of venus (venue space).
+        save_name(str): Save filename.
+    """
+
     # Sample a subset of data for assignments
-    # convert title feature vector to strings
-    # output_context = [", ".join([str(e) for e in features[itr,:]])
-    #                   for itr in range(amount)]
+    # Convert title feature vector to strings
     print("Creating output array...")
     output_context = list()
     for itr in tqdm(range(features.shape[0])):
@@ -77,17 +102,28 @@ def save_features(ppr_id, features, venues_feature, n_bow, n_venues, save_name):
     output_df.to_csv(save_name, sep='\t', index=False, header=False)
 
 
-def vectorization(file, output, hin=False, vector_model=None, encoder_model=None,
-                  venues_list=None, amount=100):
+def feature_transform(file, output, hin=False, vector_model=None,
+                      encoder_model=None, venues_file=None, amount=100):
     """
+    Train models and transform given corpus to feature vectors.
+
+    Args:
+        file(str): Input corpus filename.
+        output(str): Output filename.
+        hin(bool): Use heterogeneous features if asserted.
+        vector_model(str): Filename for vectorizer model.
+        encoder_model(str): Filename for encoder model.
+        venues_file(str): File containing all possible venues.
+        amount(int): Number of instance to be sampled for demo.
     """
+
     if vector_model is None:
         vector_model = "model/{0}vectorizer.pkl".format("h_" if hin else "")
     if encoder_model is None:
         encoder_model = "model/{0}encoder.pkl".format("h_" if hin else "")
     testset = "data/{0}testset.tsv".format("h_" if hin else "")
-    if venues_list is None:
-        venues_list = "data/labels.txt"
+    if venues_file is None:
+        venues_file = "data/labels.txt"
     print("Using {0}geneous features".format("Hetero" if hin else "Homo"))
 
     sampled_trainset = "{0}text_features.txt".format("h_" if hin else "")
@@ -96,7 +132,7 @@ def vectorization(file, output, hin=False, vector_model=None, encoder_model=None
     # Load cleaned data
     data = readlines(file, delimiter="\t", lower=True)
     # Load venues list
-    all_venues = readlines(venues_list, lower=True)
+    all_venues = readlines(venues_file, lower=True)
     all_venues = list(chain.from_iterable(all_venues))
     unique_venues = list(np.unique(all_venues))
 
@@ -133,7 +169,16 @@ def vectorization(file, output, hin=False, vector_model=None, encoder_model=None
 
 def fit_encoder(file, output, hin, vector_model, encoder_model):
     """
+    Transform given corpus to feature vectors with given models.
+
+    Args:
+        file(str): Input corpus filename.
+        output(str): Output filename.
+        hin(bool): Use heterogeneous features if asserted.
+        vector_model(str): Filename for vectorizer model.
+        encoder_model(str): Filename for encoder model.
     """
+
     if vector_model is None:
         vector_model = "model/{0}vectorizer.pkl".format("h_" if hin else "")
     if encoder_model is None:
@@ -192,5 +237,5 @@ if __name__ == '__main__':
     if args.fit:
         fit_encoder(args.file, args.output, args.hin, args.vector, args.encoder)
     else:
-        vectorization(args.file, args.output, args.hin, args.vector, args.encoder,
-                      args.venues, args.amount)
+        feature_transform(args.file, args.output, args.hin, args.vector,
+                          args.encoder, args.venues, args.amount)

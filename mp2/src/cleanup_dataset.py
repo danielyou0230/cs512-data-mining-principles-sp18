@@ -10,16 +10,28 @@ from itertools import chain
 
 def cleanup(file, output, cleanup_only=False, threshold=5, thread=None):
     """
+    Cleanup the dataset according to the specs of the task.
+
+    Arguments:
+        file(str): Input corpus filename.
+        output(str): Output filename.
+        cleanup_only(bool): Just cleanup the words using predefined frequent words.
+        threshold(int): The threshold to filter out infrequent words.
+        thread(int): Number of thread to run simultaneously
     """
-    # 1. Convert each title to lowercase.
+
+    # 1. Load and convert each title to lowercase.
     data = readlines(file, delimiter="\t", lower=True)
+
     # 2. Remove all characters that are not 
     #    (1) lowercase characters (a-z), 
     #    (2) whitespace, or 
     #    (3) hyphen '-'
     data = remove_redundant_char(data, index=1)
+
     # 3. Tokenize each title into words by splitting on whitespace.
     words, data = tokenize_context(data, index=1, thread=thread)
+
     # 4. Remove all tokens that appear fewer than 5 times in the dataset.
     # 4-1. Find frequent words
     if not cleanup_only:
@@ -29,10 +41,12 @@ def cleanup(file, output, cleanup_only=False, threshold=5, thread=None):
         print("Loading frequent_words from training set.")
         frequent_words = readlines("frequent_words.txt", lower=True)
         frequent_words = list(chain.from_iterable(frequent_words))
+
     # 4-2. Remove infrequent words in titles
     data = filter_title(data, index=1, frequent_words=frequent_words, thread=thread)
     # Save to file
     write_to_file(output, data, delimiter="\t", row_as_line=True)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

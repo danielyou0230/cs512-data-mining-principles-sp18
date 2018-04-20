@@ -12,7 +12,8 @@ from multiprocessing import Pool, cpu_count
 def split_data(data, n_slice):
     """
     Split data to minibatches with last batch may be larger or smaller.
-    Arguments:
+
+    Args:
         data(ndarray): Array of data.
         n_slice(int): Number of slices to separate the data.
     Return:
@@ -38,12 +39,14 @@ def split_data(data, n_slice):
 def generic_threading(n_jobs, data, method, param=None, shared=False):
     """
     Generic threading method.
-    Arguments:
+
+    Args:
         n_jobs(int): number of thead to run the target method
         data(ndarray): Data that will be split and distributed to threads.
         method(method object): Threading target method
         param(tuple): Tuple of additional parameters needed for the method.
         shared: (undefined)
+
     Return:
         result(list of any type): List of return values from the method.
     """
@@ -68,14 +71,6 @@ def generic_threading(n_jobs, data, method, param=None, shared=False):
     print("All threads completed.")
     return result
 
-def save_sparse(filename, array):
-    np.savez(filename, data=array.data, indices=array.indices,
-             indptr=array.indptr, shape=array.shape)
-
-def load_sparse(filename):
-    loader = np.load(filename)
-    return csr_matrix((loader['data'], qloader['indices'], loader['indptr']),
-                      shape=loader['shape'])
 
 def readlines(file, begin=None, limit=None, delimiter=None, lower=False):
     """
@@ -87,6 +82,7 @@ def readlines(file, begin=None, limit=None, delimiter=None, lower=False):
         begin(int): Index of the first line to be read.
         limit(int): Index of the last line to be read, or the amount of
             samples drawn from the dataset if rand is asserted.
+
     Return:
         data(list of strings): Lines from the files
     """
@@ -108,14 +104,16 @@ def readlines(file, begin=None, limit=None, delimiter=None, lower=False):
 
     return data
 
+
 def write_to_file(file, data, delimiter=None, row_as_line=False):
     """
     Write strings to files.
+
     Arguments:
         file(str): Output filename.
         data(list): List of list of strings / List of strings.
     """
-    #
+
     lines = list()
     if row_as_line:
         for itr in data:
@@ -139,17 +137,21 @@ def write_to_file(file, data, delimiter=None, row_as_line=False):
                 f.write(itr + "\n")
     print("File saved in {:s}".format(file))
 
+
 def remove_redundant_char(data, index):
     """
+    Remove redundant characters with given specs.
+
     Args:
         data(list):
         index(int): The index to be processed.
+
     Returns:
         data(list): Same as original data but with the object in 
                    the designated index in each row modified.
     """
-    print()
-    print("Removing redundant characters")
+
+    print("\nRemoving redundant characters")
     # Define punctuations to remove as regex object
     pattern = re.compile('[^A-Za-z0-9-]+')
 
@@ -159,14 +161,22 @@ def remove_redundant_char(data, index):
 
     return data
 
+
 def tokenize_context(data, index, thread=None):
     """
+    Tokenize content on the element of the given index in data.
+    Support multithreading.
+
     Args:
+        data(list of str): Data with untokenized titles.
+        index(int): Index to which the element is to be tokenized.
+        thread(int): Number of threads to run simultaneously.
     Returns:
-        words()
+        words(list of str): Tokenized words.
+        data(list of str): Processed (titles are tokenized) data.
     """
-    print()
-    print("Tokenizing titles")
+
+    print("\nTokenizing titles")
     #
     if thread is None:
         result = _tokenize_context(0, data, index)
@@ -174,6 +184,8 @@ def tokenize_context(data, index, thread=None):
         # Threading
         param = (index,)
         result = generic_threading(thread, data, _tokenize_context, param)
+
+        # Unpack the corresponding data from the array
         words = list(chain.from_iterable([itr[0] for itr in result]))
         data = list(chain.from_iterable([itr[1] for itr in result]))
     # print(len(result))
@@ -182,7 +194,18 @@ def tokenize_context(data, index, thread=None):
 
 def _tokenize_context(thread_idx, data, index):
     """
+    Threading function for tokenizing the designated content in data.
+
+    Args:
+        thread_idx(int): The index of the thread.
+        data(list of str): Data with untokenized titles.
+        index(int): Index to which the element is to be tokenized.
+
+    Returns:
+        words(list of str): Tokenized words.
+        data(list of str): Processed (titles are tokenized) data.
     """
+
     desc = "Thread {:2d}".format(thread_idx + 1)
     #
     words = list()
@@ -192,54 +215,66 @@ def _tokenize_context(thread_idx, data, index):
         words.append(tokenized)
 
     # Unpack the 2-d list to 1-d list
-    return list(chain.from_iterable(words)), data
+    words = list(chain.from_iterable(words))
+
+    return words, data
+
 
 def find_frequent_words(words, threshold):
     """
+    Find frequent words with occurence higher than the given threshold.
+
     Args:
         words(list): Messy list of duplicated words to be counted.
         threshold(int): The threshold to filer out infrequent words.
     Returns:
-        words(list): 
+        frequent_words(list): List of frequent words.
     """
-    print()
-    print("Finding frequent words in titles")
+
+    print("\nFinding frequent words in titles")
     # Counting the occurence of distinct words in the list "words"
     occurence = dict(Counter(words))
-    # Create a list indicating frequent words
-    frequent_words = list()
     # pprint(occurence)
 
+    # Create a list indicating frequent words
+    frequent_words = list()
+
+    # Iterate the occurence dictionary and pick out those frequent words
     for itr_word, itr_occ in tqdm(occurence.items()):
         # Remove words with occurence >= threshold
         if itr_occ >= threshold:
             frequent_words.append(itr_word)
 
+    # Sort the frequent words alphabetically
     frequent_words.sort()
-    #
+    
+    # Some useful information
     freq_w = len(frequent_words)
     org_w  = len(list(np.unique(words)))
     percentage = 100. * (org_w - freq_w) / org_w
     print(" - Occurence Threshold: {:3d}".format(threshold))
     print(" - Frequent words: {:6d} (Raw: {:6d}, reduced by {:2.2f}%)"
           .format(freq_w, org_w, percentage))
+
     return frequent_words
+
 
 def filter_title(data, index, frequent_words, thread=None):
     """
+    Filter the elements on the given index of data with given frequent words.
 
     Args:
-        data(ndarray):
-        index(int):
-        frequent_words(list): 
+        data(list of str): Data with untokenized titles.
+        index(int): Index to which the element is to be tokenized.
+        frequent_words(list): List of frequent words.
 
     Returns:
-        result(ndarray):
+        result(list of str): Processed (titles are tokenized) data.
     """
-    print()
-    print("Filtering the title with frequent words.")
+
+    print("\nFiltering the title with frequent words.")
     #
-    if thread is None:
+    if thread is None or thread == 1:
         result = _filter_title(0, data, index, frequent_words)
     else:
         # Threading
@@ -249,9 +284,21 @@ def filter_title(data, index, frequent_words, thread=None):
 
     return result
 
+
 def _filter_title(thread_idx, data, index, frequent_words):
     """
+    Filter title with given frequent words.
+
+    Args:
+        thread_idx(int): The index of the thread.
+        data(list of str): Data with untokenized titles.
+        index(int): Index to which the element is to be tokenized.
+        frequent_words(list): List of frequent words.
+
+    Returns:
+        data(ndarray): Processed (titles are tokenized) data.
     """
+
     desc = "Thread {:2d}".format(thread_idx + 1)
     #
     for itr in tqdm(range(len(data)), position=thread_idx, desc=desc):
