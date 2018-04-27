@@ -2,18 +2,17 @@ import argparse
 import os
 import numpy as np
 import pandas as pd
-from utils import readlines, write_to_file, save_sparse, load_sparse
-from scipy.sparse import csr_matrix
+from utils import readlines, write_to_file
 from sklearn.externals import joblib
 from sklearn.preprocessing import LabelEncoder
 from sklearn.feature_extraction.text import CountVectorizer
 from itertools import chain
 from tqdm import tqdm
 
-# python src/vectorization.py data/cleaned_data.txt --output=training
-# python src/vectorization.py data/cleaned_data.txt --output=training --hin
-# python src/vectorization.py data/cleaned_validation.txt --fit
-# python src/vectorization.py data/cleaned_validation.txt --fit --hin
+# python src/feature_transformation.py data/cleaned_data.txt --output=training
+# python src/feature_transformation.py data/cleaned_data.txt --output=training --hin
+# python src/feature_transformation.py data/cleaned_validation.txt --fit
+# python src/feature_transformation.py data/cleaned_validation.txt --fit --hin
 
 
 def generate_features(data, hin=False):
@@ -96,10 +95,22 @@ def save_features(ppr_id, features, venues_feature, n_bow, n_venues, save_name):
     output_col = ["id", "feature_vector", "encoded_labels"]
     output_df = pd.DataFrame(output_arr, columns=output_col)
 
-    # print("Saving sampled training set to {0}\n".format(sampled_trainset))
     print("Saving transformed featrues to {0}\n".format(save_name))
-    # output_df.to_csv(sampled_trainset, sep='\t', index=False, header=False)
     output_df.to_csv(save_name, sep='\t', index=False, header=False)
+    del output_arr, output_df
+
+    # Create a directory under the original saving directory
+    index = save_name.rfind("/")
+    sample_dir = save_name[:index + 1] + "sample/"
+    if not os.path.exists(sample_dir):
+        os.makedirs(sample_dir)
+    sampled_trainset = sample_dir + save_name[index + 1:]
+
+    print("Saving sampleset to {0}".format(sampled_trainset))
+    amount = 50
+    output_arr = np.hstack([output_context[:amount], venues_feature[:amount]])
+    output_df = pd.DataFrame(output_arr, columns=output_col[1:])
+    output_df.to_csv(sampled_trainset, sep='\t', index=False, header=False)
 
 
 def feature_transform(file, output, hin=False, vector_model=None,

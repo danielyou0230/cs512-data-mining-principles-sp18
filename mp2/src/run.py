@@ -4,17 +4,17 @@ import pandas as pd
 import numpy as np
 from sklearn.linear_model import SGDClassifier
 from sklearn.externals import joblib
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, recall_score, precision_score
 from tqdm import tqdm
 
 # python src/run.py --model=model/clf.pkl --train=data/trainset.tsv
-# python src/run.py --model=model/clf.pkl --train=data/h_trainset.tsv
+# python src/run.py --model=model/h_clf.pkl --train=data/h_trainset.tsv --hin
 
 # python src/run.py --model=model/clf.pkl --train=data/trainset.tsv --test=data/testset.tsv
-# python src/run.py --model=model/clf.pkl --train=data/h_trainset.tsv --test=data/h_testset.tsv
+# python src/run.py --model=model/h_clf.pkl --train=data/h_trainset.tsv --test=data/h_testset.tsv --hin
 
 # python src/run.py --model=model/clf.pkl --test=data/testset.tsv --predict
-# python src/run.py --model=model/clf.pkl --test=data/h_testset.tsv --predict
+# python src/run.py --model=model/h_clf.pkl --test=data/h_testset.tsv --predict --hin
 
 
 def read_dataset(file):
@@ -48,7 +48,7 @@ def read_dataset(file):
     y_train = df["encoded_labels"].astype('int64')[1:].values
     del df
 
-    return X_train, y_train, id_data
+    return X_train, y_train, id_data[1:]
 
 
 def expand_dense_matrix(dense, size):
@@ -93,6 +93,8 @@ def eval_f1(clf, X, y_true):
 
     Return:
         y_pred(ndarray): Prediction given the clf and training instances.
+        per_class_eval(dict): Dictionary contains labels as keys and
+                              [precision, recall] as values.
     """
 
     # Predict on given data
@@ -102,14 +104,20 @@ def eval_f1(clf, X, y_true):
     f1_micro = f1_score(y_true, y_pred, average="micro")
     f1_macro = f1_score(y_true, y_pred, average="macro")
     f1_weighted = f1_score(y_true, y_pred, average="weighted")
-    print("Evaluation on training set:")
+    print("F1 Evaluations:")
     print("F1-micro: {:2.5f} | F1-macro: {:2.5f} | F1-weighted: {:2.5f}"
           .format(f1_micro, f1_macro, f1_weighted))
 
-    return y_pred
+    per_class_pre = list(precision_score(y_true, y_pred, average=None))
+    per_class_rec = list(recall_score(y_true, y_pred, average=None))
+    class_space = list(np.unique(y_true))
+    per_class_scores = list(zip(per_class_pre, per_class_rec))
+    per_class_eval = dict(zip(class_space, per_class_scores))
+
+    return y_pred, per_class_eval
 
 
-def run(train_file, test_file=None, model_file=None):
+def run(train_file, test_file=None, model_file=None, hin=False, encoder_model=None):
     """
     Train the classifier with given training data and self-evaluate
     on training set, if test_file is given, then it will also evaluate
@@ -137,10 +145,10 @@ def run(train_file, test_file=None, model_file=None):
     eval_f1(clf, X_train, y_train)
 
     if test_file is not None:
-        predict(test_file, model_file=None, clf=clf)
+        predict(test_file, model_file=None, clf=clf, hin=hin, encoder_model=encoder_model)
 
 
-def predict(test_file, model_file, clf=None):
+def predict(test_file, model_file, clf=None, hin=False, encoder_model=None):
     """
     Making predictions with given data and model.
 
@@ -158,12 +166,51 @@ def predict(test_file, model_file, clf=None):
     X_test, y_test, id_test = read_dataset(test_file)
 
     # Predict and evaluate classifier
-    y_pred = eval_f1(clf, X_test, y_test)
+    y_pred, per_class_eval = eval_f1(clf, X_test, y_test)
+
+    # Inverse transform the labels to venues (human-interpretable)
+    if encoder_model is None:
+        encoder_model = "model/{0}encoder.pkl".format("h_" if hin else "")
+    # Load LabelEncoder
+    print("Loading LabelEncoder from {0}".format(encoder_model))
+    encoder = joblib.load(encoder_model)
+    # Convert to labels
+    print("Inverse transforming labels to venues...\n")
+    venues = encoder.inverse_transform(y_pred)
 
     # Save result
-    output_arr = np.hstack([id_test, y_pred[:, np.newaxis]])
+    output_arr = np.hstack([id_test[:, np.newaxis], venues[:, np.newaxis]])
     df = pd.DataFrame(output_arr)
-    df.to_csv("prediction.tsv", sep='\t', index=False, header=False)
+    pred_file = "{0}prediction.tsv".format("h_" if hin else "")
+    df.to_csv(pred_file, sep='\t', index=False, header=False)
+    print("Prediction saved to {0}".format(pred_file))
+    del df, output_arr
+
+    # Save per class precision and recall score
+    all_classes = encoder.classes_
+    # All distinct class labels contained in the prediction
+    eval_classes = list(per_class_eval.keys())
+    eval_classes = list(encoder.inverse_transform(eval_classes))
+    # Change the label in per_class_eval to text
+    per_class_eval = dict(zip(eval_classes, list(per_class_eval.values())))
+
+    # Create an array to record the corresponding precision and recall for each venue
+    stat = np.empty([all_classes.shape[0], 2])
+    stat.fill(np.nan)
+    for idx, itr in enumerate(all_classes):
+        # Fill in precision and recall if the predication contains the venue
+        try:
+            stat[idx, 0] = per_class_eval[itr][0]
+            stat[idx, 1] = per_class_eval[itr][1]
+        # np.nan otherwise (default)
+        except:
+            pass
+
+    output_arr = np.hstack([all_classes[:, np.newaxis], stat])
+    df = pd.DataFrame(output_arr)
+    pr_file = "{0}precision_recall.tsv".format("h_" if hin else "")
+    df.to_csv(pr_file, sep='\t', index=False, header=["venue", "precision", "recall"])
+    print("Precision and Recall for all classes saved to {0}".format(pr_file))
 
 
 if __name__ == '__main__':
@@ -172,9 +219,10 @@ if __name__ == '__main__':
                         model if --fit is given.")
     parser.add_argument("--train", help="Training set filename")
     parser.add_argument("--test", help="Testing set filename.")
+    parser.add_argument("--hin", action="store_true", help="Use heterogeneous features.")
+    parser.add_argument("--encoder", help="LabelEncoder filename.")
     parser.add_argument("--predict", action="store_true",
                         help="Fit model with given training set.")
-
     args = parser.parse_args()
 
     # Create model save path
@@ -182,6 +230,6 @@ if __name__ == '__main__':
         os.makedirs("model/")
 
     if args.predict:
-        predict(args.test, args.model)
+        predict(args.test, args.model, hin=args.hin)
     else:
-        run(args.train, args.test, args.model)
+        run(args.train, args.test, args.model, args.hin)

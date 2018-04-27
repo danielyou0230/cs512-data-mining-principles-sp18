@@ -1,5 +1,5 @@
 import argparse
-from utils import readlines, remove_redundant_char, tokenize_context, find_frequent_words, filter_title, write_to_file
+from utils import readlines, remove_redundant_char, tokenize_context, find_frequent_words, filter_title, write_to_file, sample_data
 from itertools import chain
 
 
@@ -12,7 +12,7 @@ def cleanup(file, output, cleanup_only=False, threshold=5, thread=None):
     """
     Cleanup the dataset according to the specs of the task.
 
-    Arguments:
+    Args:
         file(str): Input corpus filename.
         output(str): Output filename.
         cleanup_only(bool): Just cleanup the words using predefined frequent words.
@@ -48,6 +48,21 @@ def cleanup(file, output, cleanup_only=False, threshold=5, thread=None):
     write_to_file(output, data, delimiter="\t", row_as_line=True)
 
 
+def sample_dataset(file, amount):
+    """
+    Sample the given amount of data from the file.
+
+    Args:
+        file(str): File to be sampled.
+        amount(int): Amount of data to be drawn from the file.
+    """
+
+    # Load and convert each title to lowercase.
+    data = readlines(file, delimiter="\t", lower=True)
+    # Sample
+    sample_data(file, data, amount=amount)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("file", help="File to be parsed.")
@@ -57,9 +72,13 @@ if __name__ == '__main__':
     parser.add_argument("--threshold", nargs='?', type=int, default=5, 
                         help="Occurance below threshold would be filtered out.")
     parser.add_argument("--thread", type=int, help="Number of threads to run.")
-    parser.add_argument("--verbose", action="store_true",
-                        help="Verbose output")
+    parser.add_argument("--sample", action="store_true", help="Sample the given file.")
+    parser.add_argument("--amount", type=int, default=50,
+                        help="Number of samples to be drawn from the file.")
 
     args = parser.parse_args()
 
-    cleanup(args.file, args.output, args.cleanup_only, args.threshold, args.thread)
+    if args.sample:
+        sample_dataset(args.file, args.amount)
+    else:
+        cleanup(args.file, args.output, args.cleanup_only, args.threshold, args.thread)

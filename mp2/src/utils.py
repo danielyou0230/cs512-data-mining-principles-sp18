@@ -1,3 +1,4 @@
+import os
 import re
 import nltk
 import numpy as np
@@ -103,6 +104,28 @@ def readlines(file, begin=None, limit=None, delimiter=None, lower=False):
     print("Total {0} lines loaded.".format(len(lines)))
 
     return data
+
+
+def sample_data(file, data, amount):
+    """
+    Sample some amount of data from the entire dataset.
+
+    Args:
+        file(str): Original filename.
+        data(list): Data to be sampled
+        amount(int): Number of data to be sampled from data.
+    """
+
+    # Create a directory under the original saving directory
+    index = file.rfind("/")
+    sample_dir = file[:index + 1] + "sample/"
+    if not os.path.exists(sample_dir):
+        os.makedirs(sample_dir)
+
+    # Sample the first "amount" of lines
+    # Save the sample file under the sample path
+    file_out = sample_dir + file[index + 1:]
+    write_to_file(file_out, data[:amount], delimiter="\t", row_as_line=True)
 
 
 def write_to_file(file, data, delimiter=None, row_as_line=False):
