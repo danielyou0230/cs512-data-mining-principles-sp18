@@ -36,10 +36,10 @@ def cleanup(file, output, cleanup_only=False, threshold=5, thread=None):
     # 4-1. Find frequent words
     if not cleanup_only:
         frequent_words = find_frequent_words(words, threshold=threshold)
-        write_to_file("frequent_words.txt", frequent_words)
+        write_to_file("models/frequent_words.txt", frequent_words)
     else:
         print("Loading frequent_words from training set.")
-        frequent_words = readlines("frequent_words.txt", lower=True)
+        frequent_words = readlines("models/frequent_words.txt", lower=True)
         frequent_words = list(chain.from_iterable(frequent_words))
 
     # 4-2. Remove infrequent words in titles
